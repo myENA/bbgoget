@@ -75,7 +75,18 @@ func (bbh *BBHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	prefix := strings.Join(pathParts[0:3], "/")
 	host := bbh.serverNameOverride
 	if len(host) == 0 {
-		host, _ = splitHostPort(req.URL.Host)
+		if len(host) == 0 {
+			host = req.Header.Get("X-Forwarded-For")
+		}
+		if len(host) == 0 {
+			host, _ = splitHostPort(req.URL.Host)
+		}
+	}
+
+	if len(host) == 0 {
+		fmt.Printf("error with blank host")
+		resp.WriteHeader(http.StatusBadRequest)
+		resp.Write([]byte("blank host"))
 	}
 	repoURL := fmt.Sprintf("ssh://git@%s:%d%s.git", host, bbh.sshPort, prefix)
 	importPrefix := host + prefix
