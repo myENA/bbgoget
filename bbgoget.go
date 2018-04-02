@@ -76,7 +76,7 @@ func (bbh *BBHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	host := bbh.serverNameOverride
 	if len(host) == 0 {
 		if len(host) == 0 {
-			host = req.Header.Get("X-Forwarded-For")
+			host = req.Header.Get("X-Forwarded-Host")
 		}
 		if len(host) == 0 {
 			host, _ = splitHostPort(req.URL.Host)
