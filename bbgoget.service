@@ -1,0 +1,16 @@
+[Unit]
+Description=bbgoget server
+Requires=network-online.target
+After=network-online.target
+
+[Service]
+User=bbgoget
+Group=bbgoget
+LimitNOFILE=65536
+EnvironmentFile=-/etc/sysconfig/bbgoget
+Restart=on-failure
+ExecStart=/usr/bin/bbgoget $OPTIONS
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target

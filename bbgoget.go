@@ -21,7 +21,7 @@ func main() {
 
 	fs.StringVar(&listenAddr, "listen-address", ":8800", "specify listen address")
 	fs.IntVar(&sshPort, "ssh-port", 7999, "specify bitbucket ssh port")
-	fs.StringVar(&serverNameOverride, "servername-override", "", "override the server name.  if not specified, uses the host value from the request url")
+	fs.StringVar(&serverNameOverride, "servername-override", "", "override the server name.  if not specified, uses the host value from the X-Forwarded-Host header")
 
 	_ = fs.Parse(os.Args[1:])
 
@@ -72,7 +72,7 @@ func (bbh *BBHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	prefix := strings.Join(pathParts[0:3], "/")
+	prefix := strings.Join(pathParts[:3], "/")
 	host := bbh.serverNameOverride
 	if len(host) == 0 {
 		if len(host) == 0 {
