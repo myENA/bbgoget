@@ -21,3 +21,5 @@ would work with other git servers.  Also - and most importantly - this made it v
 
 
 We've only tested it with our specific configuration.  This also enables glide get and dep ensure to work with our private repos.
+
+This also makes dep ensure and glide get play nice with bitbucket private hosted ssh only repos.
