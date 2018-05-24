@@ -49,21 +49,16 @@ type BBHandler struct {
 }
 
 func (bbh *BBHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
-	fmt.Printf("got request: %s\n", req.URL.String())
-	goGet := req.URL.Query()["go-get"]
-	isGoGet := false
-	if len(goGet) >= 1 {
-		if goGet[0] == "1" {
-			isGoGet = true
-		}
-	}
 
-	if !isGoGet {
+	if req.URL.Query().Get("go-get") != "1" {
 		resp.WriteHeader(http.StatusBadRequest)
 		resp.Write([]byte("not a go-get request, investigate proxy config\n"))
 		return
 	}
 
+	// Since path should begin with '/', strings.split
+	// will return the first element as blank, second
+	// as project, third as our actual repository.
 	pathParts := strings.Split(req.URL.Path, "/")
 
 	if len(pathParts) < 3 {
@@ -72,12 +67,13 @@ func (bbh *BBHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// Strip everything after the repository portion of the URL
 	prefix := strings.Join(pathParts[:3], "/")
+
+	// Try to find the host
 	host := bbh.serverNameOverride
 	if len(host) == 0 {
-		if len(host) == 0 {
-			host = req.Header.Get("X-Forwarded-Host")
-		}
+		host = req.Header.Get("X-Forwarded-Host")
 		if len(host) == 0 {
 			host, _ = splitHostPort(req.URL.Host)
 		}
@@ -88,8 +84,10 @@ func (bbh *BBHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		resp.WriteHeader(http.StatusBadRequest)
 		resp.Write([]byte("blank host"))
 	}
+
 	repoURL := fmt.Sprintf("ssh://git@%s:%d%s.git", host, bbh.sshPort, prefix)
 	importPrefix := host + prefix
+
 	resp.WriteHeader(http.StatusOK)
 	w := bufio.NewWriter(resp)
 	_, err := w.WriteString(fmt.Sprintf("<html><head><meta name=\"go-import\" content=\"%s %s %s\"></head><body>go get</body></html>", importPrefix, "git", repoURL))
