@@ -1,7 +1,7 @@
 %define debug_package %{nil}
 
 Name:           bbgoget
-Version:        0.1.1
+Version:        0.1.2
 Release:        1%{?dist}
 Summary:        This makes bitbucket server private repos work with go get
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
@@ -15,7 +15,7 @@ URL:            https://github.com/myENA/bbgoget
 
 %undefine _disable_source_fetch
 Source0:        https://%{pkgpath}/archive/v%{version}.tar.gz
-%define         SHA256SUM0 66bd46fd6f8c73f2413f5c3dd9a9fcc1581953c2121813ca5a4089e37e717df8
+%define         SHA256SUM0 97ff241f2052c5e0de6f20674a7b088504525974ae0f09898df53676427779cf
 BuildRequires:  systemd-units golang
 
 %define         bbgoget_user bbgoget
