@@ -2,10 +2,16 @@ package main
 
 import (
 	"bufio"
+	"crypto/tls"
 	"flag"
 	"fmt"
+	"log"
+	"net"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
+	"path"
 	"strings"
 	"time"
 )
@@ -14,23 +20,27 @@ func main() {
 	fs := flag.NewFlagSet("bbgoget", flag.ExitOnError)
 
 	var (
-		sshPort            int
-		listenAddr         string
-		serverNameOverride string
-		depth              int
+		listenAddr string
 	)
+	bbh := &BBHandler{}
 
 	fs.StringVar(&listenAddr, "listen-address", ":8800", "specify listen address")
-	fs.IntVar(&sshPort, "ssh-port", 7999, "specify git server ssh port")
-	fs.StringVar(&serverNameOverride, "servername-override", "", "override the server name.  if not specified, uses the host value from the X-Forwarded-Host header")
-	fs.IntVar(&depth, "depth", 3, "specify depth of repositories")
+	fs.IntVar(&bbh.sshPort, "ssh-port", 7999, "specify git server ssh port")
+	fs.StringVar(&bbh.serverNameOverride, "servername-override", "", "override the server name.  "+
+		"if not specified, uses the host value from the X-Forwarded-Host header")
+	fs.IntVar(&bbh.depth, "depth", 3, "specify depth of repositories")
+	fs.BoolVar(&bbh.rpMode, "reverse-proxy-mode", false, "if true, reverse proxy for reverse-proxy-url")
+	fs.StringVar(&bbh.rpURLString, "reverse-proxy-url", "", "if reverse-proxy-mode is true, this must be "+
+		"set to the upstream url for http(s) traffic")
+	fs.BoolVar(&bbh.rpIgnoreSSLErrors, "revers-proxy-ignore-ssl-errors", false, "if true, ignore "+
+		"upstream tls errors in the case of a self signed certificate, for instance")
 
 	_ = fs.Parse(os.Args[1:])
 
-	bbh := &BBHandler{
-		sshPort:            sshPort,
-		serverNameOverride: serverNameOverride,
-		depth:              depth,
+	err := bbh.Initialize()
+	if err != nil {
+		log.Printf("Error: %s", err)
+		os.Exit(1)
 	}
 	server := &http.Server{
 		Addr:              listenAddr,
@@ -39,9 +49,9 @@ func main() {
 		WriteTimeout:      10 * time.Second,
 	}
 
-	err := server.ListenAndServe()
+	err = server.ListenAndServe()
 	if err != nil {
-		fmt.Printf("error: %s\n", err)
+		log.Printf("Error: %s", err)
 		os.Exit(1)
 	}
 }
@@ -50,16 +60,60 @@ type BBHandler struct {
 	serverNameOverride string
 	sshPort            int
 	depth              int
+	rpMode             bool
+	rpURLString        string
+	rpIgnoreSSLErrors  bool
+	rpURL              *url.URL
+	rp                 *httputil.ReverseProxy
+}
+
+func (bbh *BBHandler) Initialize() error {
+	if bbh.rpMode == true {
+		if bbh.rpURLString == "" {
+			return fmt.Errorf("if reverse proxy mode is enabled, the URL must be set")
+		}
+		var err error
+		bbh.rpURL, err = url.Parse(bbh.rpURLString)
+		if err != nil {
+			return fmt.Errorf("invalid reverse proxy URL: %w", err)
+		}
+		trans := &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}).DialContext,
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: bbh.rpIgnoreSSLErrors,
+			},
+			ForceAttemptHTTP2:     true,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		}
+		bbh.rp = &httputil.ReverseProxy{
+			Director:       bbh.Director,
+			Transport:      trans,
+		}
+	}
+	return nil
 }
 
 func (bbh *BBHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 
 	if req.URL.Query().Get("go-get") != "1" {
-		resp.WriteHeader(http.StatusBadRequest)
-		resp.Write([]byte("not a go-get request, investigate proxy config\n"))
+		// This is not a go-get request. Check to see if we're in proxy mode.
+		switch bbh.rpMode {
+		case false:
+			resp.WriteHeader(http.StatusBadRequest)
+			resp.Write([]byte("not a go-get request, investigate proxy config\n"))
+		case true:
+			// if we get here, we need to proxy the request
+			bbh.rp.ServeHTTP(resp, req)
+		}
 		return
 	}
-
 
 	pathParts := strings.Split(req.URL.Path, "/")
 
@@ -101,6 +155,14 @@ func (bbh *BBHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		fmt.Printf("got error writing body: %s\n", err)
 	}
 	_ = w.Flush()
+}
+
+func (bbh BBHandler) Director(req *http.Request) {
+	req.URL.Host = bbh.rpURL.Host
+	req.URL.Scheme = bbh.rpURL.Scheme
+	if len(bbh.rpURL.Path) > 0 {
+		req.URL.Path = path.Join(bbh.rpURL.Path, req.URL.Path)
+	}
 }
 
 func splitHostPort(hp string) (host string, port string) {
