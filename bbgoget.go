@@ -32,7 +32,7 @@ func main() {
 	fs.BoolVar(&bbh.rpMode, "reverse-proxy-mode", false, "if true, reverse proxy for reverse-proxy-url")
 	fs.StringVar(&bbh.rpURLString, "reverse-proxy-url", "", "if reverse-proxy-mode is true, this must be "+
 		"set to the upstream url for http(s) traffic")
-	fs.BoolVar(&bbh.rpIgnoreSSLErrors, "revers-proxy-ignore-ssl-errors", false, "if true, ignore "+
+	fs.BoolVar(&bbh.rpIgnoreSSLErrors, "reverse-proxy-ignore-ssl-errors", false, "if true, ignore "+
 		"upstream tls errors in the case of a self signed certificate, for instance")
 
 	_ = fs.Parse(os.Args[1:])
