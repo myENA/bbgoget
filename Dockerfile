@@ -7,4 +7,4 @@ go get -u github.com/myENA/bbgoget
 FROM alpine:latest
 COPY --from=bld /go/bin/bbgoget /usr/local/bin/bbgoget
 EXPOSE 8800/tcp
-CMD ["/usr/local/bin/bbgoget"]
+ENTRYPOINT ["/usr/local/bin/bbgoget"]
